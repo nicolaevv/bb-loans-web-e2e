@@ -1,5 +1,5 @@
-import { Locator, Page } from '@playwright/test';
-import { BasePage } from './base.page';
+import { Page } from '@playwright/test';
+import { BasePage } from '../base.page';
 
 export class GuaranteesProductsTabPage extends BasePage{
 

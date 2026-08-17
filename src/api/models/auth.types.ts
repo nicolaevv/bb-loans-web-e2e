@@ -8,6 +8,7 @@ export interface TokenResponse {
 }
 
 export interface StoredApiToken {
-  token: string;
   bearerToken: string;
+  /** Epoch milliseconds, derived from the response's `expires_in`. */
+  expiresAt: number;
 }

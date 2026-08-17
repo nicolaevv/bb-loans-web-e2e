@@ -1,10 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
-import path from 'path';
+import { requireEnv } from './src/config/env.config';
+import { SessionStorage } from './src/utils/session.storage';
 
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
+ *
+ * requireEnv() reads process.env lazily, at call time, so it is safe to import
+ * it above this line.
  */
 dotenv.config();
 
@@ -22,14 +26,21 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: [['list'], ['html', { open: 'never' }]],
+  /* Per-test budget; individual assertions get their own timeout below. */
+  timeout: 60_000,
+  expect: {
+    timeout: 10_000,
+  },
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
-    baseURL: process.env.BASE_URL || 'https://business.maib.test',
+    baseURL: requireEnv('BASE_URL'),
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     ignoreHTTPSErrors: true,
     viewport: null,
     launchOptions: {
@@ -37,15 +48,14 @@ export default defineConfig({
     },
   },
 
-  /* Configure projects for major browsers */
   projects: [
-
-  {
+    /* Obtains an API bearer token and stores it in playwright/.auth/api-token.json */
+    {
       name: 'setup:api',
       testMatch: /.*\.api\.setup\.ts/,
     },
-    
-    // 2. Setup для UI
+
+    /* Logs in through the UI and stores the browser session in playwright/.auth/user.json */
     {
       name: 'setup:ui',
       testMatch: /.*\.ui\.setup\.ts/,
@@ -53,21 +63,18 @@ export default defineConfig({
 
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'],
-        storageState: 'playwright/.auth/user.json',
-       },
-       dependencies: ['setup:api', 'setup:ui'], 
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: SessionStorage.FILE,
+      },
+      dependencies: ['setup:api', 'setup:ui'],
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    /*
+     * firefox and webkit are intentionally absent: without `dependencies` and
+     * `storageState` they cannot pass a single authenticated scenario. Add them
+     * back mirroring the chromium project once cross-browser coverage is needed.
+     */
 
     /* Test against mobile viewports. */
     // {
