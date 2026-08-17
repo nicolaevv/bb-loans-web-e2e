@@ -1,6 +1,7 @@
 import { APIRequestContext, request as playwrightRequest } from '@playwright/test';
 import { TokenResponse } from '../models/auth.types';
 import { ApiClient } from '../clients/api.client';
+import { API_CREDENTIALS } from '../../config/env.config';
 
 export class AuthApiClient extends ApiClient{
 
@@ -8,20 +9,20 @@ export class AuthApiClient extends ApiClient{
     super(request);
   }
 
-  async getBearerToken(): Promise<string> {
-    const tokenUrl = process.env.API_TOKEN_URL || 'https://tkc.maib.test/realms/test/protocol/openid-connect/token';
-
-    // Используем переданный контекст или создаем локальный
+  /** Full token response — callers that need `expires_in` use this one. */
+  async requestToken(): Promise<TokenResponse> {
+    // Reuse the injected context when there is one, otherwise create a throwaway
+    // one and dispose of it in `finally`.
     const context = this.request || await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
 
     try {
-      const response = await context.post(tokenUrl, {
+      const response = await context.post(API_CREDENTIALS.tokenUrl, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         form: {
-          client_id: process.env.API_CLIENT_ID || 'bblending-client',
-          client_secret: process.env.API_CLIENT_SECRET || 'Og2nQaf1nImO1ndZMantiHJR7jDZQ0bK',
+          client_id: API_CREDENTIALS.clientId,
+          client_secret: API_CREDENTIALS.clientSecret,
           grant_type: 'client_credentials',
         },
       });
@@ -30,13 +31,17 @@ export class AuthApiClient extends ApiClient{
         throw new Error(`Failed to obtain bearer token: ${response.status()} ${response.statusText()}`);
       }
 
-      const data: TokenResponse = await response.json();
-      return data.access_token;
+      return (await response.json()) as TokenResponse;
     } finally {
-      // Очищаем только если контекст был создан локально
+      // Dispose only the context we created ourselves.
       if (!this.request) {
         await context.dispose();
       }
     }
+  }
+
+  async getBearerToken(): Promise<string> {
+    const { access_token } = await this.requestToken();
+    return access_token;
   }
 }

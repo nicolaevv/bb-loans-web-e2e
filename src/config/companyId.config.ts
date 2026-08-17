@@ -1,21 +1,17 @@
-export const COMPANY_ID = {
-    TRANCHE_COMPANY_ID: process.env.TRANCHE_COMPANY_ID || 'fallback_tranche_id',
-    LOAN_COMPANY_ID: process.env.LOAN_COMPANY_ID || 'fallback_loan_id',
-    ORDYNARY_GUARANTY_COMPANY_ID: process.env.ORDYNARY_GUARANTY_COMPANY_ID || 'fallback_ordinary_id',
-    LINE_GUARANTY_COMPANY_ID: process.env.LINE_GUARANTY_COMPANY_ID || 'fallback_line_id',
-} as const;
-
-export type CompanyIdKey = keyof typeof COMPANY_ID;
+import { requireEnv } from './env.config';
 
 /**
- * Безопасное получение ID с выбросом понятной ошибки, если переменной нет в .env
+ * Test companies, one per product flow. Values live in .env because they differ
+ * between environments and between developers' own test data.
  */
-export const getCompanyId = (key: CompanyIdKey): string => {
-  const companyId = COMPANY_ID[key];
-  
-  if (!companyId || companyId.startsWith('fallback_')) {
-    console.warn(`[Config Warning]: Переменная для ${key} не задана в .env!`);
-  }
-  
-  return companyId;
-};
+const COMPANY_ID_ENV_KEYS = {
+  TRANCHE: 'TRANCHE_COMPANY_ID',
+  LOAN: 'LOAN_COMPANY_ID',
+  ORDINARY_GUARANTY: 'ORDYNARY_GUARANTY_COMPANY_ID',
+  LINE_GUARANTY: 'LINE_GUARANTY_COMPANY_ID',
+} as const;
+
+export type CompanyIdKey = keyof typeof COMPANY_ID_ENV_KEYS;
+
+export const getCompanyId = (key: CompanyIdKey): string =>
+  requireEnv(COMPANY_ID_ENV_KEYS[key]);
