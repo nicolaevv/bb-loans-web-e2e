@@ -1,63 +1,103 @@
-/**
- * Single entry point for reading environment variables.
- *
- * Every value fails loudly when missing: a silent fallback turns a broken .env
- * into a confusing UI/API failure several steps later instead of an obvious
- * configuration error at startup.
- */
+type EnvKeyMap<K extends string> = Readonly<Record<K, string>>;
 
-export const requireEnv = (key: string): string => {
-  const value = process.env[key];
+type ResolvedEnv<K extends string, V> = Readonly<Record<K, V>>;
 
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable "${key}". Add it to your .env file (see .env.example).`
+abstract class EnvConfig<K extends string, V> {
+  constructor(
+    protected readonly keys: EnvKeyMap<K>,
+    protected readonly prefix: string = ''
+  ) {
+    for (const property of Object.keys(keys) as K[]) {
+      Object.defineProperty(this, property, {
+        get: () => this.get(property),
+        enumerable: true,
+      });
+    }
+  }
+
+  get(key: K): V {
+    return this.read(`${this.prefix}${this.keys[key]}`);
+  }
+
+  all(): Record<K, V> {
+    return (Object.keys(this.keys) as K[]).reduce(
+      (resolved, key) => {
+        resolved[key] = this.get(key);
+        return resolved;
+      },
+      {} as Record<K, V>
     );
   }
 
-  return value;
-};
+  protected abstract read(variable: string): V;
+}
 
-/** For genuinely optional settings only. */
-export const optionalEnv = (key: string, fallback: string): string =>
-  process.env[key] || fallback;
+class RequiredEnv<K extends string> extends EnvConfig<K, string> {
+  protected read(variable: string): string {
+    const value = process.env[variable];
 
-export const URLS = {
-  get base(): string {
-    return requireEnv('BASE_URL');
-  },
-  get products(): string {
-    return requireEnv('PRODUCTS_URL');
-  },
-  get loanApplication(): string {
-    return requireEnv('LOAN_APPLICATION_URL');
-  },
-  get loanOriginationApi(): string {
-    return requireEnv('LOAN_ORIGINATION_API_URL');
-  },
-  /** Shell BFF — backs the app shell; used here to validate a browser session. */
-  get shellBff(): string {
-    return requireEnv('SHELL_BFF_URL');
-  },
+    if (!value) {
+      throw new Error(
+        `Missing required environment variable "${variable}". Add it to your .env file (see .env.example).`
+      );
+    }
+
+    return value;
+  }
+}
+
+class FlagEnv<K extends string> extends EnvConfig<K, boolean> {
+  protected read(variable: string): boolean {
+    return !!process.env[variable];
+  }
+}
+
+const requiredEnv = <K extends string>(keys: EnvKeyMap<K>, prefix?: string) =>
+  new RequiredEnv(keys, prefix) as RequiredEnv<K> & ResolvedEnv<K, string>;
+
+const flagEnv = <K extends string>(keys: EnvKeyMap<K>) =>
+  new FlagEnv(keys) as FlagEnv<K> & ResolvedEnv<K, boolean>;
+
+const URL_ENV_KEYS = {
+  base: 'BASE_URL',
+  products: 'PRODUCTS_URL',
+  loanApplication: 'LOAN_APPLICATION_URL',
+  loanOriginationApi: 'LOAN_ORIGINATION_API_URL',
+  shellBff: 'SHELL_BFF_URL',
 } as const;
 
-export const UI_CREDENTIALS = {
-  get username(): string {
-    return requireEnv('UI_USERNAME');
-  },
-  get password(): string {
-    return requireEnv('UI_PASSWORD');
-  },
+const UI_CREDENTIAL_ENV_KEYS = {
+  username: 'UI_USERNAME',
+  password: 'UI_PASSWORD',
 } as const;
 
-export const API_CREDENTIALS = {
-  get clientId(): string {
-    return requireEnv('API_CLIENT_ID');
-  },
-  get clientSecret(): string {
-    return requireEnv('API_CLIENT_SECRET');
-  },
-  get tokenUrl(): string {
-    return requireEnv('API_TOKEN_URL');
-  },
+const API_CREDENTIAL_ENV_KEYS = {
+  clientId: 'API_CLIENT_ID',
+  clientSecret: 'API_CLIENT_SECRET',
+  tokenUrl: 'API_TOKEN_URL',
+} as const;
+
+const COMPANY_ID_ENV_KEYS = {
+  TRANCHE: 'TRANCHE_COMPANY_ID',
+  LOAN: 'LOAN_COMPANY_ID',
+  ORDINARY_GUARANTY: 'ORDYNARY_GUARANTY_COMPANY_ID',
+  LINE_GUARANTY: 'LINE_GUARANTY_COMPANY_ID',
+} as const;
+
+const RUN_FLAG_ENV_KEYS = {
+  isCi: 'CI',
+  forceAuth: 'FORCE_AUTH',
+} as const;
+
+export type CompanyIdKey = keyof typeof COMPANY_ID_ENV_KEYS;
+
+export type Credentials = ResolvedEnv<keyof typeof UI_CREDENTIAL_ENV_KEYS, string>;
+
+export const ENV = {
+  urls: requiredEnv(URL_ENV_KEYS),
+  ui: requiredEnv(UI_CREDENTIAL_ENV_KEYS),
+  bnplUi: requiredEnv(UI_CREDENTIAL_ENV_KEYS, 'BNPL_'),
+  api: requiredEnv(API_CREDENTIAL_ENV_KEYS),
+  companies: requiredEnv(COMPANY_ID_ENV_KEYS),
+  flags: flagEnv(RUN_FLAG_ENV_KEYS),
 } as const;

@@ -1,5 +1,5 @@
 import { expect, test as setup } from '../../src/fixtures/page.fixture';
-import { SessionApiClient } from '../../src/api/clients/session.client';
+import { SessionClient } from '../../src/api/clients/session.client';
 import { SessionStorage } from '../../src/utils/session.storage';
 import { LoginPage } from '../../src/page-objects/pages/login.page';
 import { Logger } from '../../src/utils/logger';
@@ -18,7 +18,7 @@ import { Logger } from '../../src/utils/logger';
  */
 setup('Reuse the stored UI session, or sign in and create one', async ({ browser }) => {
   if (SessionStorage.shouldTryReuse() && !SessionStorage.isDefinitelyExpired()) {
-    if (await new SessionApiClient().isStoredSessionAlive()) {
+    if (await SessionClient.isStoredSessionAlive()) {
       Logger.info('Reused the stored browser session');
       setup.info().annotations.push({ type: 'session', description: 'reused' });
       return;
@@ -34,19 +34,14 @@ setup('Reuse the stored UI session, or sign in and create one', async ({ browser
   const loginPage = new LoginPage(page);
 
   try {
-    await setup.step('Sign in', async () => {
-      await loginPage.open();
-      await loginPage.login();
-    });
-
-    await setup.step('Pick a company and open the loans module', async () => {
-      await loginPage.selectFirstCompany();
-      await loginPage.openLoanModule();
-    });
+    await loginPage.open();
+    await loginPage.login();
+    await loginPage.selectFirstCompany();
+    await loginPage.openLoanModule();
 
     await setup.step('Store the session for the test projects', async () => {
       await expect(page).toHaveURL(/\/loans\/?(\?.*)?$/, { timeout: 15000 });
-      await context.storageState({ path: SessionStorage.FILE });
+      await context.storageState({ path: SessionStorage.file });
     });
   } finally {
     await context.close();

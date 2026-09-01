@@ -2,7 +2,7 @@ import { test as base } from '@playwright/test';
 import { LoginPage } from '../page-objects/pages/login.page';
 import { LoansPage } from '../page-objects/pages/loans.page';
 import { GuaranteesProductsTabPage } from '../page-objects/components/guarantees.products.tab.page';
-import { CompanyIdKey, getCompanyId } from '../config/companyId.config';
+import { CompanyIdKey, ENV } from '../config/env.config';
 import { cleanupClientApplications } from '../helpers/loan.application.delete.helper';
 
 type PageFixtures = {
@@ -39,16 +39,16 @@ export const test = base.extend<CustomFixtures>({
   },
 
   companyId: async ({}, use) => {
-    await use(getCompanyId('LOAN'));
+    await use(ENV.companies.get('LOAN'));
   },
 
   getCompany: async ({}, use) => {
-    await use((key: CompanyIdKey) => getCompanyId(key));
+    await use((key: CompanyIdKey) => ENV.companies.get(key));
   },
 
   cleanApplications: async ({}, use) => {
     await use(async (key: CompanyIdKey) => {
-      await cleanupClientApplications(getCompanyId(key));
+      await cleanupClientApplications(ENV.companies.get(key));
     });
   },
 });

@@ -1,7 +1,7 @@
 import { request as playwrightRequest } from '@playwright/test';
 import { TokenStorage } from '../utils/token.storage';
 import { Logger } from '../utils/logger';
-import { URLS } from '../config/env.config';
+import { ENV } from '../config/env.config';
 import { LoanApplication } from '../api/models/application.types';
 
 /** Statuses that must not be touched — the application is already past the point of no return. */
@@ -23,7 +23,7 @@ export async function cleanupClientApplications(companyId: string): Promise<void
   });
 
   try {
-    const response = await apiContext.get(`${URLS.loanOriginationApi}/api/v1/loans/applications`);
+    const response = await apiContext.get(`${ENV.urls.loanOriginationApi}/api/v1/loans/applications`);
 
     if (!response.ok()) {
       Logger.error(`Could not list applications for company ${companyId}: ${response.status()}`);
@@ -46,7 +46,7 @@ export async function cleanupClientApplications(companyId: string): Promise<void
 
     for (const application of applicationsToCancel) {
       const deleteResponse = await apiContext.delete(
-        `${URLS.loanOriginationApi}/api/v1/loans/applications/${application.applicationId}`
+        `${ENV.urls.loanOriginationApi}/api/v1/loans/applications/${application.applicationId}`
       );
 
       if (!deleteResponse.ok()) {

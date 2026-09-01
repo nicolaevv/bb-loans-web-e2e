@@ -1,31 +1,44 @@
-export class Logger {
-  // ANSI-коды цветов
-  private static COLORS = {
-    RESET: '\x1b[0m',
-    GREEN: '\x1b[32m',
-    CYAN: '\x1b[36m',
-    RED: '\x1b[31m',
-  };
+type LogLevelSpec = {
+  label: string;
+  color: string;
+  stream: 'log' | 'error';
+};
 
-  private static formatMessage(level: string, message: string, color: string = ''): string {
-    const timestamp = new Date().toISOString();
-    // Раскрашивается только сам тег уровня [INFO], [STEP], [ERROR]
-    const formattedLevel = color 
-      ? `${color}[${level}]${this.COLORS.RESET}` 
-      : `[${level}]`;
+type LogLevelMap<K extends string> = Readonly<Record<K, LogLevelSpec>>;
 
-    return `[${timestamp}] ${formattedLevel} ${message}`;
+type LogMethod = (message: string, detail?: unknown) => void;
+
+const RESET = '\x1b[0m';
+
+class LevelLogger<K extends string> {
+  constructor(levels: LogLevelMap<K>) {
+    for (const level of Object.keys(levels) as K[]) {
+      Object.defineProperty(this, level, {
+        value: (message: string, detail?: unknown) => this.write(levels[level], message, detail),
+        enumerable: true,
+      });
+    }
   }
 
-  static step(stepName: string) {
-    console.log(`\n${this.formatMessage('STEP', `---> ${stepName}`, this.COLORS.CYAN)}`);
-  }
+  private write({ label, color, stream }: LogLevelSpec, message: string, detail?: unknown): void {
+    const line = `[${new Date().toISOString()}] ${color}[${label}]${RESET} ${message}`;
 
-  static info(message: string) {
-    console.log(this.formatMessage('INFO', message, this.COLORS.GREEN));
-  }
+    if (detail === undefined) {
+      console[stream](line);
+      return;
+    }
 
-  static error(message: string, error?: any) {
-    console.error(this.formatMessage('ERROR', message, this.COLORS.RED), error || '');
+    console[stream](line, detail);
   }
 }
+
+const LOG_LEVEL_SPECS = {
+  step: { label: 'STEP', color: '\x1b[36m', stream: 'log' },
+  info: { label: 'INFO', color: '\x1b[32m', stream: 'log' },
+  error: { label: 'ERROR', color: '\x1b[31m', stream: 'error' },
+} as const satisfies LogLevelMap<string>;
+
+const levelLogger = <K extends string>(levels: LogLevelMap<K>) =>
+  new LevelLogger(levels) as LevelLogger<K> & Readonly<Record<K, LogMethod>>;
+
+export const Logger = levelLogger(LOG_LEVEL_SPECS);

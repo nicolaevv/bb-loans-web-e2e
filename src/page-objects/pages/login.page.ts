@@ -1,6 +1,7 @@
 import { Locator, Page } from '@playwright/test';
 import { BasePage } from '../base.page';
-import { UI_CREDENTIALS } from '../../config/env.config';
+import { ENV } from '../../config/env.config';
+import { Step } from '../../utils/step.decorator';
 
 export class LoginPage extends BasePage {
   static readonly PATH = '/login';
@@ -35,6 +36,7 @@ export class LoginPage extends BasePage {
       .or(page.getByRole('link', { name: 'Credite', exact: true }));
   }
 
+  @Step('Open the login page')
   async open(): Promise<void> {
     await this.navigateTo(LoginPage.PATH);
   }
@@ -45,6 +47,7 @@ export class LoginPage extends BasePage {
    * The landing page sometimes shows an SSO hand-off button and sometimes the
    * form directly, so the button is clicked only when present.
    */
+  @Step('Sign in')
   async login(): Promise<void> {
     // Wait for whichever of the two renders first — isVisible() does not wait,
     // so checking it straight away would race the page load.
@@ -69,8 +72,8 @@ export class LoginPage extends BasePage {
    */
   private async enterCredentials(attempts = 3): Promise<void> {
     for (let attempt = 1; attempt <= attempts; attempt++) {
-      await this.typeText(this.usernameInput, UI_CREDENTIALS.username);
-      await this.typeText(this.passwordInput, UI_CREDENTIALS.password);
+      await this.typeText(this.usernameInput, ENV.ui.username);
+      await this.typeText(this.passwordInput, ENV.ui.password);
 
       if (await this.isSubmitReady()) {
         return;
@@ -97,15 +100,18 @@ export class LoginPage extends BasePage {
     return this.companyList.filter({ has: this.page.getByRole('heading', { name }) });
   }
 
+  @Step('Select the first company')
   async selectFirstCompany(): Promise<void> {
     await this.clickElement(this.companyList.first());
   }
 
+  @Step('Select company {0}')
   async selectCompanyByName(name: string): Promise<void> {
     await this.clickElement(this.companyByName(name));
   }
 
   /** Navigate from the dashboard into the loans module via the top menu. */
+  @Step('Open the loans module from the top menu')
   async openLoanModule(): Promise<void> {
     await this.clickElement(this.productsMenuButton);
     await this.clickElement(this.loansMenuItem);

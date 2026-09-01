@@ -7,10 +7,8 @@ test.describe('Credit line application', () => {
   });
 
   test('opens the credit line application form', async ({ page, loansPage }) => {
-    await test.step('Open the applications tab', async () => {
-      await loansPage.open();
-      await loansPage.openTab('Cereri');
-    });
+    await loansPage.open();
+    await loansPage.openTab('Cereri');
 
     await test.step('Applications tab is active', async () => {
       await expect(loansPage.tab('Cereri')).toBeChecked();

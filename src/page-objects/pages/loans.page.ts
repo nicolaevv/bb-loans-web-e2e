@@ -1,5 +1,6 @@
 import { Locator, Page } from '@playwright/test';
 import { BasePage } from '../base.page';
+import { Step } from '../../utils/step.decorator';
 
 /** Top-level product family switcher shown above the module content. */
 export type ProductFamily = 'Credite' | 'Garanții' | 'Factoring';
@@ -21,6 +22,7 @@ export class LoansPage extends BasePage {
     super(page);
   }
 
+  @Step('Open the loans module')
   async open(): Promise<void> {
     await this.openAndWait(LoansPage.PATH, this.productFamily('Credite'));
   }
@@ -33,10 +35,12 @@ export class LoansPage extends BasePage {
     return this.page.getByRole('radio', { name, exact: true });
   }
 
+  @Step('Select the {0} product family')
   async selectProductFamily(name: ProductFamily): Promise<void> {
     await this.clickElement(this.productFamily(name));
   }
 
+  @Step('Open the {0} tab')
   async openTab(name: LoansTab): Promise<void> {
     await this.clickElement(this.tab(name));
   }

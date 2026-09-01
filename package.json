@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --config=playwright.headed.config.ts",
+    "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:auth": "playwright test --project=setup:api --project=setup:ui",

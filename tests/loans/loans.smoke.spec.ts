@@ -8,15 +8,14 @@ import { test, expect } from '../../src/fixtures/page.fixture';
  *    '@playwright/test' directly; that is what injects the page objects;
  *  - page objects supply locators and actions, assertions stay in the spec, so
  *    a failure names the expectation that broke;
- *  - `test.step` gives the HTML report a readable structure;
+ *  - actions name themselves in the report through `@Step` on the page-object
+ *    method; `test.step` stays here only to group assertions;
  *  - every wait is an assertion — no waitForTimeout, no manual isVisible();
  *  - no hardcoded ids or credentials: they come from .env via src/config.
  */
 test.describe('Loans module', () => {
   test('shows the loans dashboard to an authenticated user', async ({ page, loansPage }) => {
-    await test.step('Open the loans module', async () => {
-      await loansPage.open();
-    });
+    await loansPage.open();
 
     await test.step('Product family switcher defaults to Credite', async () => {
       await expect(page).toHaveURL(/\/loans\/?$/);
@@ -33,13 +32,8 @@ test.describe('Loans module', () => {
   });
 
   test('switches to the guarantees product family', async ({ loansPage }) => {
-    await test.step('Open the loans module', async () => {
-      await loansPage.open();
-    });
-
-    await test.step('Select Garanții', async () => {
-      await loansPage.selectProductFamily('Garanții');
-    });
+    await loansPage.open();
+    await loansPage.selectProductFamily('Garanții');
 
     await test.step('Garanții becomes the active family', async () => {
       await expect(loansPage.productFamily('Garanții')).toBeChecked();
