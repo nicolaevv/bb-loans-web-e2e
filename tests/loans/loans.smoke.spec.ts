@@ -1,49 +1,33 @@
-import { test, expect } from '../../src/fixtures/page.fixture';
+import { test, expect } from "../../src/fixtures/page.fixture";
 
-/**
- * Reference spec — the shape every test in this repo should follow.
- *
- * What to copy from it:
- *  - `test` / `expect` come from src/fixtures/page.fixture, never from
- *    '@playwright/test' directly; that is what injects the page objects;
- *  - page objects supply locators and actions, assertions stay in the spec, so
- *    a failure names the expectation that broke;
- *  - `test.step` gives the HTML report a readable structure;
- *  - every wait is an assertion — no waitForTimeout, no manual isVisible();
- *  - no hardcoded ids or credentials: they come from .env via src/config.
- */
-test.describe('Loans module', () => {
-  test('shows the loans dashboard to an authenticated user', async ({ page, loansPage }) => {
-    await test.step('Open the loans module', async () => {
-      await loansPage.open();
-    });
+test.describe("Loans module", () => {
+  test("shows the loans dashboard to an authenticated user", async ({
+    page,
+    loansPage,
+  }) => {
+    await loansPage.open();
 
-    await test.step('Product family switcher defaults to Credite', async () => {
+    await test.step("Product family switcher defaults to Credite", async () => {
       await expect(page).toHaveURL(/\/loans\/?$/);
-      await expect(loansPage.productFamily('Credite')).toBeChecked();
-      await expect(loansPage.productFamily('Garanții')).toBeVisible();
-      await expect(loansPage.productFamily('Factoring')).toBeVisible();
+      await expect(loansPage.productFamily("Credite")).toBeChecked();
+      await expect(loansPage.productFamily("Garanții")).toBeVisible();
+      await expect(loansPage.productFamily("Factoring")).toBeVisible();
     });
 
-    await test.step('Loans tabs are available', async () => {
-      await expect(loansPage.tab('Produse')).toBeChecked();
-      await expect(loansPage.tab('Linii')).toBeVisible();
-      await expect(loansPage.tab('Cereri')).toBeVisible();
+    await test.step("Loans tabs are available", async () => {
+      await expect(loansPage.tab("Produse")).toBeChecked();
+      await expect(loansPage.tab("Linii")).toBeVisible();
+      await expect(loansPage.tab("Cereri")).toBeVisible();
     });
   });
 
-  test('switches to the guarantees product family', async ({ loansPage }) => {
-    await test.step('Open the loans module', async () => {
-      await loansPage.open();
-    });
+  test("switches to the guarantees product family", async ({ loansPage }) => {
+    await loansPage.open();
+    await loansPage.selectProductFamily("Garanții");
 
-    await test.step('Select Garanții', async () => {
-      await loansPage.selectProductFamily('Garanții');
-    });
-
-    await test.step('Garanții becomes the active family', async () => {
-      await expect(loansPage.productFamily('Garanții')).toBeChecked();
-      await expect(loansPage.productFamily('Credite')).not.toBeChecked();
+    await test.step("Garanții becomes the active family", async () => {
+      await expect(loansPage.productFamily("Garanții")).toBeChecked();
+      await expect(loansPage.productFamily("Credite")).not.toBeChecked();
     });
   });
 });

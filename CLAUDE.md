@@ -4,107 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Playwright E2E suite for the **maib business banking lending module** (loans, credit lines/tranches, guarantees), targeting the `*.maib.test` / `*.tstback.maib.md` test environments. The UI under test is in **Romanian** — locators match Romanian strings (`"Conectează-te"`, `"Produse"`, `"Credite"`).
+Playwright end-to-end suite for the maib Business Banking **loans** web module. The app under test is Romanian-language, so locators are written against Romanian accessible names (`Credite`, `Garanții`, `Cereri`, `Conectează-te`, `Utilizator`, `Parola`).
+
+Package manager is **pnpm** (declared via `devEngines`). ESM-only (`"type": "module"`), TypeScript with `noEmit` — Playwright transpiles specs itself.
 
 ## Commands
 
-The package pins pnpm via `devEngines`, so `npx`/`npm run` fail with `EBADDEVENGINES`. Always use `pnpm`.
-
 ```bash
-pnpm install
-pnpm exec playwright install --with-deps
-
-pnpm test                                                    # full run
-pnpm test:ui                                                 # UI mode: one browser, stays open, re-run on click
-pnpm test:headed                                             # whole suite in ONE window (playwright.headed.config.ts)
-pnpm test:debug                                              # Playwright Inspector, pauses on each step
-pnpm test:auth                                               # re-run the two auth setup projects only
-pnpm typecheck                                               # tsc --noEmit
-pnpm report                                                  # last HTML report
-
-pnpm exec playwright test tests/loans/loans.smoke.spec.ts    # single file
-pnpm exec playwright test -g "guarantees product family"     # single test by title
-pnpm exec playwright test --repeat-each=3                    # flakiness check
+pnpm test                      # run everything (setup projects run first)
+pnpm test:headed               # headed browser
+pnpm test:ui                   # Playwright UI mode
+pnpm test:debug                # inspector
+pnpm test tests/loans/loans.smoke.spec.ts            # single file
+pnpm test tests/loans/loans.smoke.spec.ts:12         # single test by line
+pnpm test -g "switches to the guarantees"            # single test by title
+pnpm test:auth                 # run only the two auth setup projects
+pnpm test:auth:force           # same, but ignore cached session/token (FORCE_AUTH=1)
+pnpm report                    # open the last HTML report
+pnpm codegen                   # Playwright codegen
+pnpm gen:api                   # regenerate src/api/generated/api.ts from the remote OpenAPI spec
+pnpm typecheck                 # tsc --noEmit over all .ts (incl. orval/ and configs)
 ```
 
-There is no lint setup.
+There is no linter or formatter configured. `pnpm typecheck` is the only static check.
 
-## Auth architecture (the part that isn't obvious)
+## Setup
 
-Authentication is split across two Playwright *setup projects*, each producing a file under `playwright/.auth/` (gitignored) that the real test projects consume:
+Copy `.env.example` to `.env` and fill it in. Note that `.env` is **tracked in git** (it was committed before the ignore rule was added), so `.gitignore`'s `.env` entry has no effect on it — don't add real secrets there without `git rm --cached .env` first.
 
-| Project | `testMatch` | Produces | Consumed by |
-|---|---|---|---|
-| `setup:api` | `*.api.setup.ts` | `playwright/.auth/api-token.json` — Keycloak `client_credentials` bearer token, written by `TokenStorage` | `TokenStorage.getBearerToken()`, called from API helpers at runtime |
-| `setup:ui` | `*.ui.setup.ts` | `playwright/.auth/user.json` — browser `storageState` after a real UI login | `chromium` project's `use.storageState` |
+`.env.example` is incomplete relative to `src/config/env.keys.ts`: `PRODUCTS_URL` and `LOAN_APPLICATION_URL` are declared as required URL keys but missing from the example. Because env vars are read through lazy getters, a missing one only throws when something actually reads it.
 
-Consequences to keep in mind:
+## Architecture
 
-**Both setup projects reuse what a previous run left behind** instead of authenticating every time — a warm `pnpm test` is ~10s against ~26s cold.
+### Project graph (`playwright.config.ts`)
 
-- The app keeps a **sliding 2h session window**: cookie `__Host-bbapp-exp` sits ~2h past `__Host-bbapp-la` (last activity). `localStorage` also carries `companyId`, so a restored session skips the company chooser too.
-- `auth.ui.setup.ts` never trusts that timestamp to conclude a session is *alive*. It asks the app, over HTTP: `SessionApiClient.isStoredSessionAlive()` GETs `${SHELL_BFF_URL}/api/v1/auth/userinfo` with the stored cookies — 200 means alive, 401 means not. The timestamp is used only for the cheap negative ("definitely expired, skip the call"), and `SessionStorage.isDefinitelyExpired()` documents that asymmetry.
-- That check is HTTP rather than a browser probe on purpose: it runs before every suite, and opening a window just to check would break the single-window run described below. `/loans` itself is useless for this — it returns 200 signed in or not, because the redirect to the login screen is client-side.
-- After a successful check the refreshed cookies are written back via `SessionStorage.refreshCookies()`, which replaces `cookies` but keeps `origins` — an `APIRequestContext` has no localStorage, so overwriting the whole file would drop `companyId` and send the next run back to the company chooser.
-- A rejected session falls through to a full login in the same run; nothing fails. Each path is tagged in the HTML report (`reused` / `fresh login`).
-- Reuse is off when `CI` is set, and `FORCE_AUTH=1` (or `pnpm test:auth:force`) forces a clean login locally.
-- `TokenStorage` stores the API token's `expiresAt` (derived from `expires_in`) and refreshes 2 minutes before it lapses.
+Three projects, run in dependency order:
 
-- **`chromium` is the only test project**, and it declares `dependencies: ['setup:api', 'setup:ui']`. `firefox`/`webkit` were removed because without those dependencies and `storageState` they cannot pass an authenticated scenario; add them back mirroring `chromium` when cross-browser coverage is actually needed.
-- API helpers read the token off disk *lazily*, not through a fixture. Running an API-touching test standalone without the `setup:api` project having run leaves `getBearerToken()` returning `''`.
-- The UI login walks the real form (`LoginPage.login()` → `selectFirstCompany()` → `openLoanModule()`); `auth.ui.setup.ts` asserts the URL matches `/loans` before saving state.
-- **Picking a company lands on the legacy IBMAIB dashboard** (`/IBMAIB/?dashboard`, Oracle JET), not on the new SPA. The two shells render the same menu differently — "Credite" is a title `<span>` inside `toolbar "Menu"` on the legacy side and a `link` on the SPA side — which is why `LoginPage.loansMenuItem` matches both with `.or()`.
+1. `setup:api` (`*.api.setup.ts`) — obtains a client-credentials bearer token, writes `playwright/.auth/api-token.json`.
+2. `setup:ui` (`*.ui.setup.ts`) — logs in through the UI, selects the first company, opens the loans module, writes `playwright/.auth/user.json` as Playwright storage state.
+3. `chromium` — actual specs; consumes `SessionStorage.file` as `storageState`. Depends on both setups.
 
-[playwright.headed.config.ts](playwright.headed.config.ts) exists because a plain `--headed` run opens a new window per test: Playwright gives every test its own browser context by design. Reusing one window needs `reuseContext` **plus** `video: 'off'` (reuse is silently skipped while video recording is on) **plus** `workers: 1`. It is a debugging aid only — context reuse weakens the isolation the main config provides.
+### Auth state reuse
 
-A warm `pnpm test:headed` opens **one** window for the whole run: `setup:api` and `setup:ui` do their work over HTTP, and a browser with no pages shows nothing (Playwright launches Chromium with `--no-startup-window`), so the only window is the reused one the `chromium` project opens. A cold run adds one more, opened and closed by the login. If you change `auth.ui.setup.ts`, keep the reuse path free of `page`/page-object fixtures — requesting them opens a window even when it is not needed.
+`src/utils/auth.file.ts` defines `AuthFile`, the shared read/write/exists base for both cached credentials. Two singletons extend it:
 
-## Writing a test
+- `TokenStorage` (`token.storage.ts`) — valid while `expiresAt` is more than a 2-minute margin away.
+- `SessionStorage` (`session.storage.ts`) — reads the `__Host-bbapp-exp` cookie for a cheap expiry check; `SessionClient.isStoredSessionAlive()` then confirms against the shell BFF `/api/v1/auth/userinfo` and refreshes the stored cookies on success.
 
-[tests/loans/loans.smoke.spec.ts](tests/loans/loans.smoke.spec.ts) is the reference spec — copy its shape. The conventions it encodes:
+`reuseAllowed()` is false when `CI` or `FORCE_AUTH` is set, so CI always authenticates fresh. The setup specs annotate each run (`reused` vs `fresh`) so the report shows which path was taken.
 
-1. **Import `test`/`expect` from [src/fixtures/page.fixture.ts](src/fixtures/page.fixture.ts)**, never from `@playwright/test`. That import is what injects the page objects; adding a page object means wiring it into that file.
-2. **Locator priority:** `getByRole` → `getByLabel`/`getByPlaceholder` → text → CSS. The app ships **no `data-testid` attributes at all** (verified against the live stand), so roles and Romanian accessible names are what you have. Both switchers on `/loans` are `role=radio`, not tabs.
-3. **Web-first assertions only** — `await expect(locator).toBeVisible()`, never `waitFor` + `isVisible()`. Assertions retry; the manual pair does not.
-4. **No `waitForTimeout`.** If something needs settling, express it as an assertion.
-5. **Assertions live in specs, page objects only expose locators and actions** — so a failure names the broken expectation instead of pointing inside a helper.
-6. **Prepare data over the API, verify through the UI** (see the `cleanApplications` fixture), and keep each test independent of run order.
-7. **No hardcoded ids, URLs or credentials** — they come from `.env` through `src/config`.
-8. Wrap phases in `test.step` so the HTML report reads as a scenario.
+### Env config (`src/config/`)
 
-## Layout
+`env.keys.ts` holds the raw variable names; `env.config.ts` builds the `ENV` object from them. `EnvConfig` defines a getter per key, so `ENV.ui.password` reads `process.env.UI_PASSWORD` at access time and `RequiredEnv` throws a pointed error if it's empty. `FlagEnv` returns booleans (`ENV.flags.isCi`).
 
-- `tests/` — specs (`testDir`), named `*.spec.ts`. `*.setup.ts` files are picked up solely by the setup projects.
-- `src/page-objects/pages/` — whole pages (`login.page.ts`, `loans.page.ts`); `src/page-objects/components/` — embedded components; `src/page-objects/base.page.ts` — shared `BasePage`.
-- `src/fixtures/page.fixture.ts` — the extended `test`: page-object fixtures plus `companyId`, `getCompany(key)` and `cleanApplications(key)`.
-- `src/api/clients/` — thin clients extending `ApiClient`. The pattern: use the injected `APIRequestContext` if present, otherwise create a local one with `ignoreHTTPSErrors` and dispose it in `finally` (see `AuthApiClient.getBearerToken`).
-- `src/api/models/` — response/DTO interfaces only.
-- `src/helpers/` — test-data routines, e.g. `cleanupClientApplications(companyId)`, which cancels every application not in `EXCLUDED_STATUSES` (`BACK_OFFICE_PROCESSING`, `DISBURSED`, `WITHDRAWN`).
-- `src/config/` — `env.config.ts` (`requireEnv`, `URLS`, `UI_CREDENTIALS`, `API_CREDENTIALS`) and `companyId.config.ts` (`getCompanyId('LOAN' | 'TRANCHE' | 'ORDINARY_GUARANTY' | 'LINE_GUARANTY')`).
+The `prefix` argument is how one key map serves two credential sets: `ENV.bnplUi` reuses `UI_CREDENTIAL_ENV_KEYS` with the `BNPL_` prefix.
 
-## Environment
+**To add an env var:** add the name to the relevant map in `env.keys.ts`, add it to `.env.example`, and it appears on `ENV` automatically — no change to `env.config.ts`.
 
-`dotenv.config()` runs in `playwright.config.ts`; everything else goes through `requireEnv()`, which **throws** on a missing variable rather than falling back — a broken `.env` should fail as a config error, not as a puzzling API 4xx. Keys are listed in [.env.example](.env.example). Never reintroduce `process.env.X || '<real value>'`.
+### Page objects (`src/pages/`)
 
-## Style
+`BasePage` holds the `Page` and the shared primitives. `typeText` retries up to 3 times with `pressSequentially` and a 30 ms delay and verifies the value afterwards — the app's inputs drop characters, so prefer it over raw `fill`. `LoginPage.enterCredentials` layers a second retry loop on top, re-entering both fields until the submit button is actually clickable (trial click).
 
-Test titles, `test.step` names and code comments are in **English**. `src/utils/logger.ts` (`Logger.info/step/error`) is the convention for console output — not bare `console.log`.
+Page classes expose locators as getters and actions as `@Step`-decorated methods. Paths live as `static readonly PATH`.
 
-`src/utils/step.decorator.ts` provides `@Step()`, a standard (ES2022) decorator that wraps a page-object method in `test.step`, with `{0}`/`{1}` argument interpolation. Playwright's transpiler handles it without `experimentalDecorators` — do not enable that flag.
+### `@Step` decorator (`src/utils/step.decorator.ts`)
 
-## Non-obvious app behaviour
+A TC39 (stage-3) method decorator — no `experimentalDecorators` in tsconfig, don't add it. Wraps the call in `test.step`. `{0}`, `{1}`… in the label are substituted with the stringified arguments; with no label it falls back to `ClassName.method(args)`. It's used on API clients too, not just page objects.
 
-The auth form is unusually picky, and both workarounds live in `BasePage.typeText()`:
+### Fixtures (`src/fixtures/`)
 
-- `fill()` alone leaves the submit button **disabled** — the form only reacts to real key events. Verified on the stand: `fill`, `fill` + blur, and `fill` + trailing keystroke all keep it disabled. `pressSequentially` is required.
-- The field re-renders right after being cleared and **swallows the first keystrokes** (`alexandr.gorodetki` arrives as `exandr.gorodetki`). `typeText()` verifies the resulting value and retypes, which is why the old `waitForTimeout(400)` is gone.
-- The form can also wipe both inputs *after* they were verified, while it finishes hydrating — leaving a correctly-typed-then-emptied form and a disabled submit. So `LoginPage.enterCredentials()` treats **submit becoming clickable** as the real signal (a `{ trial: true }` click, which waits for actionability without clicking) and retypes everything if it never does.
+- `page.fixture.ts` — the default import for specs. Provides `loansPage` and `cleanApplications(companyKey)`.
+- `flow.fixture.ts` — extends `page.fixture` with a **worker-scoped** `sharedPage` and overrides `page` to return it, so a sequence of tests in one file can operate on a single continuously-navigated page. Currently unused; import from here when writing a multi-step flow spec instead of an independent-test spec.
 
-The `/loans` list content does not render on the test stand — the backend answers 500 and the panel stays on `Se încarcă...`. The module chrome (product family switcher, tabs) does render, which is what the smoke test asserts. Don't write assertions against loan rows until that backend is fixed.
+### API layer (`src/api/`)
 
-## Known rough edges
+- `clients/` — hand-written singletons (`AuthClient`, `SessionClient`) built on `playwrightRequest.newContext`, all with `ignoreHTTPSErrors: true` (test environments use self-signed certs).
+- `models/auth.types.ts` — hand-written token shapes.
+- `generated/api.ts` — orval output, **do not edit**; regenerate with `pnpm gen:api`.
 
-- `src/api/clients/enrichment.client.ts` exports a class also named `AuthApiClient` (copy-paste from `auth.client.ts`) with an empty `getGuaranteeProducts()`. Rename it before building on it.
-- `src/page-objects/components/tranche.page.ts` is empty and `guarantees.products.tab.page.ts` is a stub; the tranche spec stops at opening the "Cereri" tab for that reason.
-- [.github/workflows/playwright.yml](.github/workflows/playwright.yml) defines no env/secrets, so CI cannot authenticate; it also triggers only on `main`/`master`.
-- `tsconfig.json` uses `moduleResolution: "bundler"` deliberately: relative imports are extensionless throughout, and Playwright's own transpiler resolves them. Switching to `nodenext` would require adding `.js` extensions to every relative import.
+`src/utils/loans/loan.application.cleanup.ts` is the test-data reset path: it lists applications for a company and DELETEs everything except `BACK_OFFICE_PROCESSING`, `DISBURSED` and `WITHDRAWN`. It authenticates with the cached bearer token plus an `x-company-id` header, and each product flow gets its own company id (`TRANCHE`, `LOAN`, `ORDINARY_GUARANTY`, `LINE_GUARANTY` in `COMPANY_ID_ENV_KEYS`). Call it from a spec via the `cleanApplications` fixture in `beforeEach`.
+
+### orval codegen (`orval.config.ts`, `orval/`)
+
+The spec is fetched live from Nexus (`bb-loans-bff.yml`), so `pnpm gen:api` needs network and VPN access.
+
+The BFF spec declares status/currency fields as plain strings and only lists the allowed values in prose. `descriptionEnumsTransformer` walks every schema (recursively, through `properties`/`items`/`additionalProperties`/`allOf`/`anyOf`/`oneOf`) and, for any string schema whose description contains `Can be one of: …`, injects a real `enum`. That is why `LoanApplicationWorkflowStatus` and `CurrencyCode` come out as typed const objects usable in test code.

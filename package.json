@@ -5,13 +5,14 @@
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --config=playwright.headed.config.ts",
+    "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:auth": "playwright test --project=setup:api --project=setup:ui",
     "test:auth:force": "FORCE_AUTH=1 playwright test --project=setup:api --project=setup:ui",
     "report": "playwright show-report",
     "codegen": "playwright codegen",
+    "gen:api": "orval",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -29,6 +30,7 @@
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.2",
     "dotenv": "^17.4.2",
+    "orval": "^8.27.0",
     "typescript": "^7.0.2"
   }
 }
