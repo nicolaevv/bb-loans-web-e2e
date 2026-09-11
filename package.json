@@ -8,6 +8,7 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
+    "test:tranche": "MSIGN=1 playwright test --project=chromium:msign tests/loans/loan.tranche.application.spec.ts",
     "test:auth": "playwright test --project=setup:api --project=setup:ui",
     "test:auth:force": "FORCE_AUTH=1 playwright test --project=setup:api --project=setup:ui",
     "report": "playwright show-report",

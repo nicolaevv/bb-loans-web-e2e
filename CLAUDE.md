@@ -20,6 +20,7 @@ pnpm test tests/loans/loans.smoke.spec.ts:12         # single test by line
 pnpm test -g "switches to the guarantees"            # single test by title
 pnpm test:auth                 # run only the two auth setup projects
 pnpm test:auth:force           # same, but ignore cached session/token (FORCE_AUTH=1)
+pnpm test:tranche              # the tranche disbursement flow — headed, mSign, needs a token (see below)
 pnpm report                    # open the last HTML report
 pnpm codegen                   # Playwright codegen
 pnpm gen:api                   # regenerate src/api/generated/api.ts from the remote OpenAPI spec
@@ -43,6 +44,18 @@ Three projects, run in dependency order:
 1. `setup:api` (`*.api.setup.ts`) — obtains a client-credentials bearer token, writes `playwright/.auth/api-token.json`.
 2. `setup:ui` (`*.ui.setup.ts`) — logs in through the UI, selects the first company, opens the loans module, writes `playwright/.auth/user.json` as Playwright storage state.
 3. `chromium` — actual specs; consumes `SessionStorage.file` as `storageState`. Depends on both setups.
+
+A fourth project, `chromium:msign`, exists **only when `MSIGN` is set**, which `pnpm test:tranche` does. It is headed, single-worker, no retries, with a 20-minute test timeout, and it runs exactly the specs tagged `@msign`. `chromium` carries `grepInvert: /@msign/` so those specs never join a normal pass — but that alone is not enough, since a bare `playwright test` runs every project, hence the conditional.
+
+`.vscode/settings.json` sets `playwright.env: { MSIGN: "1" }` so the VS Code Playwright extension sees that project and lists the signing specs in the Test Explorer. It only affects runs launched from the extension; the terminal still needs the script (or an explicit `MSIGN=1`).
+
+### `@msign` specs
+
+Signing goes through **mSign/MoldSign**: the app calls a client running on the tester's own machine (`PUBLIC_MOLD_SIGN_API_URL`, `https://localhost.cts.md:18443`) and the PIN is typed into that desktop window, outside the browser. So these specs need a physical eSignature token plugged in and cannot run in CI — they also carry `test.skip(ENV.flags.isCi, …)` as a second guard.
+
+The global `use.ignoreHTTPSErrors: true` is load-bearing here: without it the page's calls to the self-signed MoldSign certificate are dropped.
+
+Note that these specs create **real** applications. `cleanApplications` only cancels non-terminal ones, so a `DISBURSED` tranche permanently consumes part of the credit line's limit.
 
 ### Auth state reuse
 
@@ -81,6 +94,8 @@ A TC39 (stage-3) method decorator — no `experimentalDecorators` in tsconfig, d
 - `clients/` — hand-written singletons (`AuthClient`, `SessionClient`) built on `playwrightRequest.newContext`, all with `ignoreHTTPSErrors: true` (test environments use self-signed certs).
 - `models/auth.types.ts` — hand-written token shapes.
 - `generated/api.ts` — orval output, **do not edit**; regenerate with `pnpm gen:api`.
+
+`src/utils/loans/response.tracker.ts` is the base for the passive response trackers (`ApplicationStatusTracker`, `ApplicationDocumentsTracker`). They listen to page responses and never block, building a timeline the spec asserts on *afterwards* — the only way to check something that happens inside a minutes-long wait without racing it. Each entry is stamped with the request's start time, not the response's arrival, so a call already in flight is never mistaken for the app's reaction to a status change.
 
 `src/utils/loans/loan.application.cleanup.ts` is the test-data reset path: it lists applications for a company and DELETEs everything except `BACK_OFFICE_PROCESSING`, `DISBURSED` and `WITHDRAWN`. It authenticates with the cached bearer token plus an `x-company-id` header, and each product flow gets its own company id (`TRANCHE`, `LOAN`, `ORDINARY_GUARANTY`, `LINE_GUARANTY` in `COMPANY_ID_ENV_KEYS`). Call it from a spec via the `cleanApplications` fixture in `beforeEach`.
 

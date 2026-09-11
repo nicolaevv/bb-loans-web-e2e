@@ -29,4 +29,5 @@ export const COMPANY_ID_ENV_KEYS = {
 export const RUN_FLAG_ENV_KEYS = {
   isCi: 'CI',
   forceAuth: 'FORCE_AUTH',
+  msign: 'MSIGN',
 } as const;

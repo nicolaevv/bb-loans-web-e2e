@@ -39,11 +39,34 @@ export default defineConfig({
     },
     {
       name: "chromium",
+      grepInvert: /@msign/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: SessionStorage.file,
       },
       dependencies: ["setup:api", "setup:ui"],
     },
+    // Flows that sign documents through mSign. They need a physical eSignature token and the
+    // MoldSign desktop client, and the PIN is typed outside the browser, so they must never join a
+    // normal pass. `grepInvert` above is not enough on its own — a bare `playwright test` runs
+    // every project — so the project only exists when MSIGN is set, which `pnpm test:msign` does.
+    ...(ENV.flags.msign
+      ? [
+          {
+            name: "chromium:msign",
+            grep: /@msign/,
+            timeout: 1_200_000,
+            retries: 0,
+            workers: 1,
+            use: {
+              ...devices["Desktop Chrome"],
+              storageState: SessionStorage.file,
+              headless: false,
+              video: "retain-on-failure" as const,
+            },
+            dependencies: ["setup:api", "setup:ui"],
+          },
+        ]
+      : []),
   ],
 });
