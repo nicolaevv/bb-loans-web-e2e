@@ -1,23 +1,15 @@
 import { expect, test as setup } from '../../src/fixtures/page.fixture';
 import { SessionClient } from '../../src/api/clients/session.client';
 import { SessionStorage } from '../../src/utils/session.storage';
-import { LoginPage } from '../../src/page-objects/pages/login.page';
+import { LoginPage } from '../../src/pages/login.page';
 import { Logger } from '../../src/utils/logger';
 
-/**
- * Provides playwright/.auth/user.json for the test projects.
- *
- * Carries on with the session a previous run left behind whenever the app still
- * accepts it, and signs in from scratch when it does not.
- *
- * The reuse path deliberately opens no page: it is an HTTP call, so a warm run
- * spends no browser window here and the whole suite stays in the single window
- * opened by the test project. Page objects are built by hand rather than taken
- * from the fixtures for the same reason — the `page` fixture would open a
- * window even on the path that does not need one.
- */
+const LOANS_URL = /\/loans\/?(\?.*)?$/;
+
+const LANDING_TIMEOUT_MS = 15_000;
+
 setup('Reuse the stored UI session, or sign in and create one', async ({ browser }) => {
-  if (SessionStorage.shouldTryReuse() && !SessionStorage.isDefinitelyExpired()) {
+  if (SessionStorage.shouldTryReuse()) {
     if (await SessionClient.isStoredSessionAlive()) {
       Logger.info('Reused the stored browser session');
       setup.info().annotations.push({ type: 'session', description: 'reused' });
@@ -40,7 +32,7 @@ setup('Reuse the stored UI session, or sign in and create one', async ({ browser
     await loginPage.openLoanModule();
 
     await setup.step('Store the session for the test projects', async () => {
-      await expect(page).toHaveURL(/\/loans\/?(\?.*)?$/, { timeout: 15000 });
+      await expect(page).toHaveURL(LOANS_URL, { timeout: LANDING_TIMEOUT_MS });
       await context.storageState({ path: SessionStorage.file });
     });
   } finally {

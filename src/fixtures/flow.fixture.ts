@@ -2,11 +2,11 @@ import type { Page } from '@playwright/test';
 import { test as base } from './page.fixture';
 import { SessionStorage } from '../utils/session.storage';
 
-type FlowWorkerFixtures = {
+type FlowFixtures = {
   sharedPage: Page;
 };
 
-export const test = base.extend<object, FlowWorkerFixtures>({
+export const test = base.extend<object, FlowFixtures>({
   sharedPage: [
     async ({ browser }, use) => {
       const context = await browser.newContext({ storageState: SessionStorage.file });

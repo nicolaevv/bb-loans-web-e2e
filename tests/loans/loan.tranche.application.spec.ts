@@ -1,7 +1,6 @@
 import { test, expect } from '../../src/fixtures/page.fixture';
 
 test.describe('Credit line application', () => {
-  // API cleanup, so each test starts from a company with no pending applications.
   test.beforeEach(async ({ cleanApplications }) => {
     await cleanApplications('TRANCHE');
   });
@@ -15,7 +14,7 @@ test.describe('Credit line application', () => {
       await expect(page).toHaveURL(/\/loans/);
     });
 
-    // TODO: fill in and submit the tranche form once tranche.page.ts has the
-    // locators for it — see src/page-objects/components/tranche.page.ts.
+    // TODO: fill in and submit the tranche form once a tranche page object with
+    // the locators for it exists in src/pages.
   });
 });

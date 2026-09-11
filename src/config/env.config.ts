@@ -1,3 +1,12 @@
+import {
+  API_CREDENTIAL_ENV_KEYS,
+  BNPL_UI_PREFIX,
+  COMPANY_ID_ENV_KEYS,
+  RUN_FLAG_ENV_KEYS,
+  UI_CREDENTIAL_ENV_KEYS,
+  URL_ENV_KEYS,
+} from './env.keys';
+
 type EnvKeyMap<K extends string> = Readonly<Record<K, string>>;
 
 type ResolvedEnv<K extends string, V> = Readonly<Record<K, V>>;
@@ -58,37 +67,6 @@ const requiredEnv = <K extends string>(keys: EnvKeyMap<K>, prefix?: string) =>
 const flagEnv = <K extends string>(keys: EnvKeyMap<K>) =>
   new FlagEnv(keys) as FlagEnv<K> & ResolvedEnv<K, boolean>;
 
-const URL_ENV_KEYS = {
-  base: 'BASE_URL',
-  products: 'PRODUCTS_URL',
-  loanApplication: 'LOAN_APPLICATION_URL',
-  loanOriginationApi: 'LOAN_ORIGINATION_API_URL',
-  shellBff: 'SHELL_BFF_URL',
-} as const;
-
-const UI_CREDENTIAL_ENV_KEYS = {
-  username: 'UI_USERNAME',
-  password: 'UI_PASSWORD',
-} as const;
-
-const API_CREDENTIAL_ENV_KEYS = {
-  clientId: 'API_CLIENT_ID',
-  clientSecret: 'API_CLIENT_SECRET',
-  tokenUrl: 'API_TOKEN_URL',
-} as const;
-
-const COMPANY_ID_ENV_KEYS = {
-  TRANCHE: 'TRANCHE_COMPANY_ID',
-  LOAN: 'LOAN_COMPANY_ID',
-  ORDINARY_GUARANTY: 'ORDYNARY_GUARANTY_COMPANY_ID',
-  LINE_GUARANTY: 'LINE_GUARANTY_COMPANY_ID',
-} as const;
-
-const RUN_FLAG_ENV_KEYS = {
-  isCi: 'CI',
-  forceAuth: 'FORCE_AUTH',
-} as const;
-
 export type CompanyIdKey = keyof typeof COMPANY_ID_ENV_KEYS;
 
 export type Credentials = ResolvedEnv<keyof typeof UI_CREDENTIAL_ENV_KEYS, string>;
@@ -96,7 +74,7 @@ export type Credentials = ResolvedEnv<keyof typeof UI_CREDENTIAL_ENV_KEYS, strin
 export const ENV = {
   urls: requiredEnv(URL_ENV_KEYS),
   ui: requiredEnv(UI_CREDENTIAL_ENV_KEYS),
-  bnplUi: requiredEnv(UI_CREDENTIAL_ENV_KEYS, 'BNPL_'),
+  bnplUi: requiredEnv(UI_CREDENTIAL_ENV_KEYS, BNPL_UI_PREFIX),
   api: requiredEnv(API_CREDENTIAL_ENV_KEYS),
   companies: requiredEnv(COMPANY_ID_ENV_KEYS),
   flags: flagEnv(RUN_FLAG_ENV_KEYS),

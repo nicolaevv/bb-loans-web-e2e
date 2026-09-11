@@ -2,10 +2,12 @@ import { APIRequestContext, request as playwrightRequest } from '@playwright/tes
 import { TokenResponse } from '../models/auth.types';
 import { ENV } from '../../config/env.config';
 import { Logger } from '../../utils/logger';
+import { Step } from '../../utils/step.decorator';
 
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
 
 class AuthApi {
+  @Step('Request a bearer token from the identity provider')
   async requestToken(injected?: APIRequestContext): Promise<TokenResponse> {
     const context = injected ?? (await playwrightRequest.newContext({ ignoreHTTPSErrors: true }));
 

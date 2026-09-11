@@ -9,6 +9,10 @@ class ApiTokenState extends AuthFile {
     super(AUTH_FILES.token);
   }
 
+  shouldTryReuse(): boolean {
+    return this.reuseAllowed() && this.isValid();
+  }
+
   saveToken(bearerToken: string, expiresInSeconds: number): boolean {
     return this.write({
       bearerToken,

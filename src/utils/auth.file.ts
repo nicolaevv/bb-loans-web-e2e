@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { ENV } from '../config/env.config';
 import { Logger } from './logger';
 
 export const AUTH_DIR = 'playwright/.auth';
@@ -18,6 +19,10 @@ export class AuthFile {
 
   exists(): boolean {
     return fs.existsSync(this.file);
+  }
+
+  protected reuseAllowed(): boolean {
+    return !ENV.flags.isCi && !ENV.flags.forceAuth;
   }
 
   protected read<T>(): T | null {

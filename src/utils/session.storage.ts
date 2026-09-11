@@ -1,4 +1,3 @@
-import { ENV } from '../config/env.config';
 import { AUTH_FILES, AuthFile } from './auth.file';
 
 type StorageStateCookie = { name: string; value: string };
@@ -13,12 +12,7 @@ class SessionState extends AuthFile {
   }
 
   shouldTryReuse(): boolean {
-    return !ENV.flags.isCi && !ENV.flags.forceAuth && this.exists();
-  }
-
-  isDefinitelyExpired(): boolean {
-    const expiresAt = this.readExpiry();
-    return expiresAt !== null && expiresAt <= Date.now();
+    return this.reuseAllowed() && this.exists() && !this.isDefinitelyExpired();
   }
 
   refreshCookies(fresh: StorageState): boolean {
@@ -30,6 +24,11 @@ class SessionState extends AuthFile {
 
     stored.cookies = fresh.cookies;
     return this.write(stored);
+  }
+
+  private isDefinitelyExpired(): boolean {
+    const expiresAt = this.readExpiry();
+    return expiresAt !== null && expiresAt <= Date.now();
   }
 
   private readExpiry(): number | null {

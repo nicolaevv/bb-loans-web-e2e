@@ -1,10 +1,12 @@
 import { request as playwrightRequest } from '@playwright/test';
 import { ENV } from '../../config/env.config';
 import { SessionStorage } from '../../utils/session.storage';
+import { Step } from '../../utils/step.decorator';
 
 const USERINFO_PATH = '/api/v1/auth/userinfo';
 
 class SessionApi {
+  @Step('Check whether the stored session is still accepted')
   async isStoredSessionAlive(): Promise<boolean> {
     if (!SessionStorage.exists()) {
       return false;
